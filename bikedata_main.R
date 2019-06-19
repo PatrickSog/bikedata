@@ -63,6 +63,7 @@ loadandinstall('lubridate')
 ## parameters 
 city <- 'bo' # Bosten(bo), Chicago(ch), Washington, D.C.(dc), Los Angeles(la), London(lo), 
              # Minnesota(mn), New York City(ny), Philadelphia(ph), San Fransico(sf)
+city_osm <- 'boston' 
 dates <- 201705 # only May 2017, timespan also possible, e.g. 201705:201708
 
 mycrs <- "+proj=longlat +datum=WGS84"
@@ -88,17 +89,17 @@ plot(stations,col="blue",add=T)
 ## OSM land use (could also be simplified I guess)
   # railway stations
   preds <- new.env()                                                     # create new environment for predictors 
-  preds$c1 <- opq(bbox = 'boston') %>%                                   # query from OSM
+  preds$c1 <- opq(bbox = city_osm) %>%                                   # query from OSM
       add_osm_feature(key = "public_transport") %>%
       add_osm_feature(key = "railway") %>%
       osmdata_xml(file = "OSMcommuter.osm", quiet = F)                   # save on harddisk
   preds$c1 <- sf::st_read('OSMcommuter.osm', layer = 'points', quiet = F)# read into R
   preds$c1 <- as(preds$c1, 'Spatial')                                    # convert to spatial
-  plot(preds$c1,col="#009900", add=T)
+  plot(preds$c1,col="#009900")
   points(preds$c1,col="#009900",pch=20, add=T)
 
   # bus stops
-  preds$c2<- opq(bbox = 'boston') %>%                     
+  preds$c2<- opq(bbox = city_osm) %>%                     
      add_osm_feature(key = "public_transport") %>%
      osmdata_xml(file = "OSMcommuter2.osm", quiet = F)
   preds$c2 <- sf::st_read('OSMcommuter2.osm', layer = 'points', quiet = F)   
@@ -107,7 +108,7 @@ plot(stations,col="blue",add=T)
   points(preds$c2, col = "#FFCC00", pch=20, add = T)
   
   # touristic places
-  preds$t <- opq(bbox = 'boston') %>%                     
+  preds$t <- opq(bbox = city_osm) %>%                     
      add_osm_feature(key = "tourism") %>%
      osmdata_xml(file = "OSMtourist.osm", quiet = F)
   preds$t <- sf::st_read('OSMtourist.osm', layer = 'points', quiet = F)   
@@ -115,7 +116,7 @@ plot(stations,col="blue",add=T)
   plot(preds$t, add=T)
 
   # Leisure-related places
-  preds$l <- opq(bbox = 'boston') %>%                     
+  preds$l <- opq(bbox = city_osm) %>%                     
      add_osm_feature(key = "leisure") %>%
      osmdata_xml(file = "OSMleisure.osm", quiet = F)
   preds$l <- sf::st_read('OSMleisure.osm', layer = 'points', quiet = F)
@@ -123,7 +124,7 @@ plot(stations,col="blue",add=T)
   plot(preds$l, col="green",add=T)
 
   # Offices
-  preds$o <- opq(bbox = 'boston') %>%                     
+  preds$o <- opq(bbox = city_osm) %>%                     
      add_osm_feature(key = "office") %>%
       osmdata_xml(file = "OSMoffice.osm", quiet = F)
   preds$o <- sf::st_read('OSMoffice.osm', layer = 'points', quiet = F)
@@ -216,7 +217,9 @@ occ_4pm <- occ[which(occ$start_hour==16 & occ$start_day==1),]
 
 # OR: rented bikes on mondays at 8 am 
 occ_8am_mon <- occ[which(occ$start_hour==8 & occ$start_wday==1),]
-plot(occ_8am_mon, add=T)
+
+# saturday afternoons
+occ_s_4pm_sat <- occ_s[which(occ_s$start_hour==16 & occ_s$start_wday==6),]
 
 # and so on... according to what's interesting for our analysis 
 
@@ -246,7 +249,7 @@ head(pres_all,n=50) # lots of absence points even though all trip starts in may 
 # start trip at 8 on 1st May
 pres <- stations
 pres$occ_s_8am <- NA
-for (i in 1:length(pres_s)) {
+for (i in 1:length(pres)) {
   if (pres$name[i] %!in% occ_s_8am$start.station.name) {
     pres$occ_s_8am[i] = 0
   }else {
@@ -255,13 +258,25 @@ for (i in 1:length(pres_s)) {
 }
 # end trip at 8 on 1st of May
 pres$occ_e_8am <- NA
-for (i in 1:length(pres_s)) {
+for (i in 1:length(pres)) {
   if (pres$name[i] %!in% occ_e_8am$end.station.name) {
     pres$occ_e_8am[i] = 0
   }else {
     pres$occ_e_8am[i] = 1
   }
 }
+
+# trip start saturday afternoon
+pres$occ_s_4pm_sat <- NA
+for (i in 1:length(pres)) {
+  if (pres$name[i] %!in% occ_s_4pm_sat$start.station.name) {
+    pres$occ_s_4pm_sat[i] = 0
+  }else {
+    pres$occ_s_4pm_sat[i] = 1
+  }
+}
+
+pres
 
 plot(pres[pres_all$occ_s == 1,], col = "black")
 plot(pres[pres_all$occ_s== 0,], col = "red", add = T)
@@ -279,7 +294,7 @@ points(pres[pres$occ_s_8am ==0,], pch=20, col="red")
 cm <- cor(getValues(r_stack), use = "complete.obs")
 plotcorr(cm, col=ifelse(abs(cm) > 0.7, "red", "grey"))
 
-#----------------------------- 3. Species distribution modell-----------------------------#
+#----------------------------- 3. Species distribution model -----------------------------#
 
 # the following models show a general occurance probability of trip_starts and trip_ends
 # at the rentals stations based on the chosen times and predictors...
@@ -304,3 +319,9 @@ d_2 <- sdmData(formula = occ_e_8am ~ c1+o, train = pres, predictors = r_stack)
 m1_2 <- sdm(occ_e_8am~., data = d_2, methods = c('glm', 'svm')) # fit species distribution model
 p1_2 <- predict(m1_2, newdata = r_stack, overwrite = T) # predict
 plot(p1_2$id_1.sp_1.m_glm)
+
+# trip start saturday afternoons
+d_3 <- sdmData(formula = occ_s_4pm_sat ~ c1+o+t, train = pres, predictors = r_stack)
+m1_3 <- sdm(occ_s_4pm_sat~., data = d_3, methods = c('glm', 'svm')) # fit species distribution model
+p1_3 <- predict(m1_3, newdata = r_stack, overwrite = T) # predict
+plot(p1_3$id_1.sp_1.m_glm)

@@ -59,79 +59,70 @@ loadandinstall('osmplotr')
 loadandinstall('OpenStreetMap')
 loadandinstall('ellipse')
 loadandinstall('lubridate')
+loadandinstall('plotrix')
+loadandinstall('scales')
 
 ## parameters 
 city <- 'bo' # Bosten(bo), Chicago(ch), Washington, D.C.(dc), Los Angeles(la), London(lo), 
-             # Minnesota(mn), New York City(ny), Philadelphia(ph), San Fransico(sf)
+# Minnesota(mn), New York City(ny), Philadelphia(ph), San Fransico(sf)
 city_osm <- 'boston' 
-dates <- 201705 # only May 2017, timespan also possible, e.g. 201705:201708
+dates <- 201701:201712 # only May 2017, timespan also possible, e.g. 201705:201708
 
 mycrs <- "+proj=longlat +datum=WGS84"
 
 ######------------------------- 1. Find, download & load data -----------------------######
 
 ## bike data (if more than one month... use list and write as loop)
-bikedata_dl_zip <- dl_bikedata(city=city,data_dir = dirs$main_dir, 
-                               dates = dates)                         # download
-bikedata_dl <- unzip(bikedata_dl)                                     # unzip
-bikedata <- read.csv(file.path(dirs$main_dir,basename(bikedata_dl)))  # read into R
+bikedata_dl_zip <- as.list(dl_bikedata(city=city,data_dir = dirs$main_dir, 
+                                       dates = dates))                                       # download
+bikedata_dl <- lapply(bikedata_dl_zip, function(x) unzip(x,exdir = dirs$main_dir))                                 # unzip
+bikedata <- lapply(bikedata_dl, function(x) read.csv(file.path(dirs$main_dir,basename(x))))  # read into R
 
 ### extract stations 
 store_bikedata(bikedb = 'bikedb', city = city, data_dir = dirs$main_dir, dates = dates) # create database of downloaded bikedata
-bike_stations <- bike_stations(bikedb = 'bikedb', city = city)       # extract stations for selected city from database
-file_bike_stations <- paste(dates,city,"bike_stations.csv",sep = "_")# create filename
-write.csv(stations_dl,file = file_bike_stations)                     # safe on harddisk
-stations <- read.csv(file_bike_stations)                             # read into R
-coordinates(stations) <- c("longitude", "latitude")                  # convert to spatial
-proj4string(stations) <- CRS("+proj=longlat +datum=WGS84")           # add coordinate system  
-plot(stations,col="blue",add=T)
+stations <- bike_stations(bikedb = 'bikedb', city = city)       # extract stations for selected city from database
+stations <- as.data.frame(stations)
 
 ## OSM land use (could also be simplified I guess)
-  # railway stations
-  preds <- new.env()                                                     # create new environment for predictors 
-  preds$c1 <- opq(bbox = city_osm) %>%                                   # query from OSM
-      add_osm_feature(key = "public_transport") %>%
-      add_osm_feature(key = "railway") %>%
-      osmdata_xml(file = "OSMcommuter.osm", quiet = F)                   # save on harddisk
-  preds$c1 <- sf::st_read('OSMcommuter.osm', layer = 'points', quiet = F)# read into R
-  preds$c1 <- as(preds$c1, 'Spatial')                                    # convert to spatial
-  plot(preds$c1,col="#009900")
-  points(preds$c1,col="#009900",pch=20, add=T)
+# railway stations
+preds <- new.env()                                                     # create new environment for predictors 
+preds$c1 <- opq(bbox = city_osm) %>%                                   # query from OSM
+  add_osm_feature(key = "public_transport") %>%
+  add_osm_feature(key = "railway") %>%
+  osmdata_xml(file = "OSMcommuter.osm", quiet = F)                     # save on harddisk
+preds$c1 <- sf::st_read('OSMcommuter.osm', layer = 'points', quiet = F)# read into R
+preds$c1 <- as(preds$c1, 'Spatial')                                    # convert to spatial
+plot(preds$c1,col="#009900")
+points(preds$c1,col="#009900",pch=20, add=T)
 
-  # bus stops
-  preds$c2<- opq(bbox = city_osm) %>%                     
-     add_osm_feature(key = "public_transport") %>%
-     osmdata_xml(file = "OSMcommuter2.osm", quiet = F)
-  preds$c2 <- sf::st_read('OSMcommuter2.osm', layer = 'points', quiet = F)   
-  preds$c2 <- as(preds$c2, 'Spatial')
-  plot(preds$c2, col = "#FFCC00", add = T)
-  points(preds$c2, col = "#FFCC00", pch=20, add = T)
-  
-  # touristic places
-  preds$t <- opq(bbox = city_osm) %>%                     
-     add_osm_feature(key = "tourism") %>%
-     osmdata_xml(file = "OSMtourist.osm", quiet = F)
-  preds$t <- sf::st_read('OSMtourist.osm', layer = 'points', quiet = F)   
-  preds$t <- as(preds$t, 'Spatial')
-  plot(preds$t, add=T)
+# touristic places
+preds$t <- opq(bbox = city_osm) %>%                     
+  add_osm_feature(key = "tourism") %>%
+  osmdata_xml(file = "OSMtourist.osm", quiet = F)
+preds$t <- sf::st_read('OSMtourist.osm', layer = 'points', quiet = F)   
+preds$t <- as(preds$t, 'Spatial')
+points(preds$t, col="red",pch=20,add=T)
 
-  # Leisure-related places
-  preds$l <- opq(bbox = city_osm) %>%                     
-     add_osm_feature(key = "leisure") %>%
-     osmdata_xml(file = "OSMleisure.osm", quiet = F)
-  preds$l <- sf::st_read('OSMleisure.osm', layer = 'points', quiet = F)
-  preds$l <- as(preds$l, 'Spatial')
-  plot(preds$l, col="green",add=T)
+# Offices
+preds$o <- opq(bbox = city_osm) %>%                     
+  add_osm_feature(key = "office") %>%
+  osmdata_xml(file = "OSMoffice.osm", quiet = F)
+preds$o <- sf::st_read('OSMoffice.osm', layer = 'points', quiet = F)
+preds$o <- as(preds$o, 'Spatial')
+plot(preds$o, col="red",add=T)
+points(preds$o,col="blue",add=T,pch=20)
 
-  # Offices
-  preds$o <- opq(bbox = city_osm) %>%                     
-     add_osm_feature(key = "office") %>%
-      osmdata_xml(file = "OSMoffice.osm", quiet = F)
-  preds$o <- sf::st_read('OSMoffice.osm', layer = 'points', quiet = F)
-  preds$o <- as(preds$o, 'Spatial')
-  plot(preds$o, col="red",add=T)
-  points(preds$o,col="blue",add=T,pch=20)
+# university/college buildings 
+preds$u <- opq(bbox = city_osm) %>%                     
+  add_osm_feature(key = "amenity", value = c("university","college","research_institute")) %>%
+  osmdata_xml(file = "OSMuniversity.osm", quiet = F)
+preds$u <- sf::st_read('OSMuniversity.osm', layer='points',quiet = F)
+preds$u <- as(preds$u, 'Spatial')
+points(preds$u,col="purple",add=T,pch=20)
 
+available_features()
+
+# possible further predictors? 
 
 ######------------------------------- 2. Data preparation ---------------------------######
 
@@ -140,52 +131,51 @@ plot(stations,col="blue",add=T)
 # (could probably also be done more efficiently using lists and for-loops ;))
 
 r <- new.env()                                # create new environment for distance rasters
-e <- extent(stations)                         # use spatial extent of projected bike stations
-  # railway stations 
-  r$c1 <- raster(e, ncols = 100, nrows = 100) # For commuter land use 1
-  proj4string(r$c1) <- CRS("+proj=longlat +datum=WGS84")
-  r$c1 <- distanceFromPoints(object = r$c1, xy = preds$c1)
+stations_sp <- stations
+coordinates(stations_sp) <- c("longitude","latitude")
+proj4string(stations_sp) <- CRS(mycrs)
+e <- extent(stations_sp)                      # use spatial extent of projected bike stations
 
-  # bus stops 
-  r$c2 <- raster(e, ncols = 100, nrows = 100) # For commuter land use 2
-  proj4string(r$c2) <- CRS("+proj=longlat +datum=WGS84")
-  r$c2 <- distanceFromPoints(object = r$c2, xy = preds$c2)
-  plot(r$c2)
-  
-  # touristic places 
-  r$t <- raster(e, ncols = 100, nrows = 100) # For tourist land use
-  proj4string(r$t) <- CRS("+proj=longlat +datum=WGS84")
-  r$t <- distanceFromPoints(object = r$t, xy = preds$t)
-  plot(r$t)
-  
-  # leisure places
-  r$l <- raster(e, ncols = 100, nrows = 100) # For leisure land use
-  proj4string(r$l) <- CRS("+proj=longlat +datum=WGS84")
-  r$l <- distanceFromPoints(object = r$l, xy = preds$l)
-  plot(r$l)
-  
-  # offices
-  r$o <- raster(e, ncols = 100, nrows = 100) # For leisure land use
-  proj4string(r$o) <- CRS("+proj=longlat +datum=WGS84")
-  r$o <- distanceFromPoints(object = r$o, xy = preds$o)
-  plot(r$o)
-  
-  # create raster stack 
-  r_stack <- stack(r$c1,r$c2,r$l,r$s,r$t,r$o)
-  names(r_stack) <- c("c1","c2","l","s","t","o")
-  writeRaster(r_stack,"distanceStack.tif",overwrite=T)
-  
-## Rasterize bike stations 
-r$s <- raster(e, ncols = 100, nrows = 100) # For distance to bike stations
-proj4string(r$s) <- CRS("+proj=longlat +datum=WGS84")
-r$s <- distanceFromPoints(object = r$c2, xy = stations)
-plot(r$s)
-writeRaster(r$s,"distanceStation.tif")
+# railway stations 
+r$c1 <- raster(e, ncols = 100, nrows = 100) # For commuter land use 1
+proj4string(r$c1) <- CRS("+proj=longlat +datum=WGS84")
+r$c1 <- distanceFromPoints(object = r$c1, xy = preds$c1)
+
+# touristic places 
+r$t <- raster(e, ncols = 100, nrows = 100) # For tourist land use
+proj4string(r$t) <- CRS("+proj=longlat +datum=WGS84")
+r$t <- distanceFromPoints(object = r$t, xy = preds$t)
+plot(r$t)
+
+# offices
+r$o <- raster(e, ncols = 100, nrows = 100) # For leisure land use
+proj4string(r$o) <- CRS("+proj=longlat +datum=WGS84")
+r$o <- distanceFromPoints(object = r$o, xy = preds$o)
+plot(r$o)
+
+# universities
+r$u <- raster(e, ncols = 100, nrows = 100) # For leisure land use
+proj4string(r$u) <- CRS("+proj=longlat +datum=WGS84")
+r$u <- distanceFromPoints(object = r$u, xy = preds$u)
+plot(r$u)
+
+# create raster stack 
+r_l <- as.list(r)
+r_stack <- stack(r_l)
+writeRaster(r_stack,file.path(dirs$main_dir,"distanceStack.tif"),overwrite=T)
 
 #-------------------------------- 2.2 Manipulate bike dataset ----------------------------#
 
+# create one occurence dataframe from list of bikedata frames 
+for (i in 1:length(bikedata)) {
+  if (i == 1) {
+    occ <- bikedata[[i]]
+  }else{
+    occ <- rbind(occ, bikedata[[i]])
+  }
+}
+
 # split date-time column
-occ <- bikedata 
 occ$starttime <- ymd_hms(occ$starttime)
 occ$stoptime <- ymd_hms(occ$stoptime)
 occ$start_year <- year(occ$starttime)
@@ -210,84 +200,52 @@ proj4string(occ_e) <- CRS(mycrs)
 
 #------------------------------ 2.3 Subset bike dataset by time --------------------------#
 
-# FOR EXAMPLE: 1st of May at 8 am and 4 pm
-occ_s_8am <- occ_s[which(occ_s$start_hour==8 & occ_s$start_day==1),]
-occ_e_8am <- occ_e[which(occ_e$start_hour==8 & occ_e$start_day==1),]
-occ_4pm <- occ[which(occ$start_hour==16 & occ$start_day==1),]
+# trip start at 8am, 4 pm and 8pm during the week... for trips less than 1 hour...
+my_occ_s <- list()
+my_occ_s[[1]] <- occ_s[which(occ_s$start_hour == 8 & occ_s$start_day <=5 &
+                               occ_s$tripduration < 3600 & occ_s$start_month == 5),]
+my_occ_s[[2]] <- occ_s[which(occ_s$start_hour == 16 & occ_s$start_day <=5 &
+                               occ_s$tripduration < 3600& occ_s$start_month == 5),]
+my_occ_s[[3]] <- occ_s[which(occ_s$start_hour == 20 & occ_s$start_day <=5 &
+                               occ_s$tripduration < 3600& occ_s$start_month == 5),]
 
-# OR: rented bikes on mondays at 8 am 
-occ_8am_mon <- occ[which(occ$start_hour==8 & occ$start_wday==1),]
-
-# saturday afternoons
-occ_s_4pm_sat <- occ_s[which(occ_s$start_hour==16 & occ_s$start_wday==6),]
-
-# and so on... according to what's interesting for our analysis 
-
+# trip ends 
+my_occ_e <- list()
+names(occ_e)
+my_occ_e[[1]] <- occ_e[which(occ_e$stop_hour == 8 & occ_e$start_day <=5 &
+                               occ_e$tripduration < 3600& occ_s$start_month == 5),]
+my_occ_e[[2]] <- occ_e[which(occ_e$stop_hour == 16 & occ_e$start_day <=5 &
+                               occ_e$tripduration < 3600& occ_s$start_month == 5),]
+my_occ_e[[3]] <- occ_e[which(occ_e$stop_hour == 20 & occ_e$start_day <=5 &
+                               occ_e$tripduration < 3600& occ_s$start_month == 5),]
 
 #----------------------- 2.4 Create presence and absence at stations ---------------------#
-
-# we have to work on this... right now, we only know, if one or several bikes are present
-# at a certain station, but we don't now anything about the density (which would be 
-# essential for our analysis, I guess). 
-# it would further be nice to create an occurance data.frame which can directly be 
-# subsetted by time (wday,hour, etc.)
-# any ideas?? 
-
-'%!in%' <- function(x,y)!('%in%'(x,y)) # build "not in" function
-
-# all start trip data 
-pres_all <- stations
-for (i in 1:length(pres)) {
-  if (pres_all$name[i] %!in% occ_s$start.station.name) {
-    pres_all$occ_s[i] = 0
-  }else {
-    pres_all$occ_s[i] = 1
-  }
-}
-head(pres_all,n=50) # lots of absence points even though all trip starts in may are considered... how is that possible? 
-
-# start trip at 8 on 1st May
-pres <- stations
-pres$occ_s_8am <- NA
-for (i in 1:length(pres)) {
-  if (pres$name[i] %!in% occ_s_8am$start.station.name) {
-    pres$occ_s_8am[i] = 0
-  }else {
-    pres$occ_s_8am[i] = 1
-  }
-}
-# end trip at 8 on 1st of May
-pres$occ_e_8am <- NA
-for (i in 1:length(pres)) {
-  if (pres$name[i] %!in% occ_e_8am$end.station.name) {
-    pres$occ_e_8am[i] = 0
-  }else {
-    pres$occ_e_8am[i] = 1
-  }
+# trip starts
+pres_s <- list()
+for(i in 1:length(my_occ_s)){
+  frq <- table(my_occ_s[[i]]$start.station.name)
+  frq <- as.data.frame(frq)
+  names(frq) <- c("name","freq")
+  st_frq <- base::merge(stations,frq,all=T)
+  st_frq <- na.omit(st_frq)
+  coordinates(st_frq) <- c("longitude","latitude")
+  proj4string(st_frq) <- CRS(mycrs)
+  pres_s[[i]] <- st_frq
 }
 
-# trip start saturday afternoon
-pres$occ_s_4pm_sat <- NA
-for (i in 1:length(pres)) {
-  if (pres$name[i] %!in% occ_s_4pm_sat$start.station.name) {
-    pres$occ_s_4pm_sat[i] = 0
-  }else {
-    pres$occ_s_4pm_sat[i] = 1
-  }
+# trip ends 
+pres_e <- list()
+for(i in 1:length(my_occ_e)){
+  frq <- table(my_occ_e[[i]]$end.station.name)
+  frq <- as.data.frame(frq)
+  names(frq) <- c("name","freq")
+  st_frq <- base::merge(stations,frq,all=T)
+  st_frq <- na.omit(st_frq)
+  coordinates(st_frq) <- c("longitude","latitude")
+  proj4string(st_frq) <- CRS(mycrs)
+  pres_e[[i]] <- st_frq
 }
 
-pres
-
-plot(pres[pres_all$occ_s == 1,], col = "black")
-plot(pres[pres_all$occ_s== 0,], col = "red", add = T)
-
-# just try some plotting (not relevant for the analysis)
-e_l <- as.list(e) # save station extent as list to use it as input for the openmap 
-map <- openmap(upperLeft = e_l[c(4,1)], lowerRight = e_l[c(3,2)], type = "opencyclemap", mergeTiles = T)
-map <- openproj(map,projection = mycrs)
-plot(map)
-points(pres[pres$occ_s_8am ==1,], pch=20, col="black")
-points(pres[pres$occ_s_8am ==0,], pch=20, col="red")
 
 #--------------------------------- 2.4 Check for collinearity ----------------------------#
 # visual inspection of collinearity
@@ -296,32 +254,48 @@ plotcorr(cm, col=ifelse(abs(cm) > 0.7, "red", "grey"))
 
 #----------------------------- 3. Species distribution model -----------------------------#
 
-# the following models show a general occurance probability of trip_starts and trip_ends
-# at the rentals stations based on the chosen times and predictors...
+# trip starts
+p_s <- list()
+for(i in 1:length(pres_s)){
+  d <- sdmData(formula = freq ~ c1+o+t+u, train = pres_s[[i]], predictors = r_stack)
+  m <- sdm(freq~., data = d, methods = c('rf','svm')) # fit species distribution model
+  p_s[[i]] <- predict(m, newdata = r_stack, overwrite = T) # predict
+}
 
-# subsetting of times should be improved and as said before, densitiy information might
-# contain more relevant information... 
+# trip ends 
+p_e <- list()
+for(i in 1:length(pres_e)){
+  d <- sdmData(formula = freq ~ c1+o+t+u, train = pres_e[[i]], predictors = r_stack)
+  m <- sdm(freq~., data = d, methods = c('rf','svm')) # fit species distribution model
+  p_e[[i]] <- predict(m, newdata = r_stack, overwrite = T) # predict
+}
 
-# all start trip data (only regarding train stations and offices)
-d <- sdmData(formula = occ_s ~ c1+o, train = pres_all, predictors = r_stack)
-m1 <- sdm(occ_s~., data = d, methods = c('glm', 'svm')) # fit species distribution model
-p1 <- predict(m1, newdata = r_stack, overwrite = T) # predict
-plot(p1$id_1.sp_1.m_glm)
+#--------------------------------------- 4. Visualization --------------------------------------#
 
-# start trip 1st of may 8 am 
-d_1 <- sdmData(formula = occ_8am ~ c1+o, train = pres, predictors = r_stack)
-m1_1 <- sdm(occ_s_8am~., data = d_1, methods = c('glm', 'svm')) # fit species distribution model
-p1_1 <- predict(m1_1, newdata = r_stack, overwrite = T) # predict
-plot(p1_1$id_1.sp_1.m_glm)
+# base map 
+e_l <- as.list(e) # save station extent as list to use it as input for the openmap 
+map <- openmap(upperLeft = e_l[c(4,1)], lowerRight = e_l[c(3,2)], type = "opencyclemap", mergeTiles = T)
+map <- openproj(map,projection = mycrs)
+plot(map,add=F)
 
-# end trip 1st of may 8 am 
-d_2 <- sdmData(formula = occ_e_8am ~ c1+o, train = pres, predictors = r_stack)
-m1_2 <- sdm(occ_e_8am~., data = d_2, methods = c('glm', 'svm')) # fit species distribution model
-p1_2 <- predict(m1_2, newdata = r_stack, overwrite = T) # predict
-plot(p1_2$id_1.sp_1.m_glm)
+# frequency per station 
+plot(map,add=F)
+points(pres_s[[1]],cex=pres_s[[1]]$freq/10,col=alpha("blue",0.4),pch=20) # start wdays 8 am
+plot(map,add=F)
+points(pres_e[[1]],cex=pres_e[[1]]$freq/10,col=alpha("blue",0.4),pch=20) # end wdays 8 am
+points(pres_s[[2]],cex=pres_s[[2]]$freq/10,col=alpha("blue",0.4),pch=20) # start wdays 4 pm
+points(pres_s[[3]],cex=pres_s[[3]]$freq/10,col=alpha("blue",0.4),pch=20) # start wdays 8 pm
 
-# trip start saturday afternoons
-d_3 <- sdmData(formula = occ_s_4pm_sat ~ c1+o+t, train = pres, predictors = r_stack)
-m1_3 <- sdm(occ_s_4pm_sat~., data = d_3, methods = c('glm', 'svm')) # fit species distribution model
-p1_3 <- predict(m1_3, newdata = r_stack, overwrite = T) # predict
-plot(p1_3$id_1.sp_1.m_glm)
+
+# predicted frequency 
+plot(map,add=F)
+plot(p_s[[1]]$id_2.sp_1.m_svm, alpha=0.5,add=T)
+plot(map,add=F)
+plot(p_e[[1]]$id_2.sp_1.m_svm, alpha=0.5,add=T)
+
+plot(p_s[[2]]$id_2.sp_1.m_svm)
+plot(p_s[[3]]$id_2.sp_1.m_svm)
+plot(p_s[[4]]$id_2.sp_1.m_svm,alpha=0.5,add=T)
+
+p_s_stack <- stack(p_s[[1]],p_s[[2]],p_s[[3]])
+plotRGB(p_s_stack,1,3,5,stretch="lin",alpha=200,add=T)

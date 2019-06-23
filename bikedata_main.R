@@ -175,13 +175,20 @@ occ$stoptime <- ymd_hms(occ$stoptime)
 occ$start_year <- year(occ$starttime)
 occ$start_month <- month(occ$starttime)
 occ$start_day <- day(occ$starttime)
-occ$start_wday <- wday(occ$starttime)
+occ$start_wday <- wday(occ$starttime, # wday just started with 1, even though 1.1.17 was a Sunday
+                       label = F,     # this settings solve it and start with sunday acoordingly
+                       week_start = getOption("lubridate.week.start",1), 
+                       locale = Sys.getlocale("LC_TIME"))
 occ$start_hour <- hour(occ$starttime)
 occ$stop_year <- year(occ$stoptime)
 occ$stop_month <- month(occ$stoptime)
 occ$stop_day <- day(occ$stoptime)
-occ$stop_wday <- wday(occ$stoptime)
+occ$stop_wday <- wday(occ$stoptime,
+                      label = F,
+                      week_start = getOption("lubridate.week.start",1),
+                      locale = Sys.getlocale("LC_TIME"))
 occ$stop_hour <- hour(occ$stoptime)
+
 
 # create 2 spatial dataframe with trip_start and trip_end points 
 occ_s <- occ
@@ -254,7 +261,7 @@ for(i in 1:length(my_occ_e)){
 cm <- cor(getValues(r_stack), use = "complete.obs")
 plotcorr(cm, col=ifelse(abs(cm) > 0.7, "red", "grey"))
 
-#----------------------------- 3. Species distribution model -----------------------------#
+######----------------------- 3. Species distribution model -------------------------######
 
 # trip starts
 p_s <- list()
@@ -272,7 +279,30 @@ for(i in 1:length(pres_e)){
   p_e[[i]] <- predict(m, newdata = r_stack, overwrite = T) # predict
 }
 
-#--------------------------------------- 4.1 Visualization functions --------------------------------------#
+######------------------------- 4. Visualization functions ---------------------------#####
+
+#-------------------------------- 4.1 Non-spatial visualization --------------------------#
+
+# simple line plots showing the frequency of bike usage in 2017
+ts <- list()
+ts[[1]] <- as.data.frame(table(occ$start_month))  # per month
+ts[[2]] <- as.data.frame(table(occ$start_wday))   # per week (wday had to be changed above)
+ts[[3]] <- as.data.frame(table(occ$start_hour))   # per hour
+
+ts_pl <- list()
+for (i in 1:length(ts)){
+  ts_pl[[i]] <- ggplot(ts[[i]],aes(x=Var1, y=Freq,group=1)) +
+    geom_line()+
+    geom_point()
+}
+
+ts_pl[[1]]
+ts_pl[[2]]
+ts_pl[[3]]
+# I'll make them more fancy later 
+
+#--------------------------------- 4.2 Spatial visualization -----------------------------#
+
 plot(p_e[[4]])
 # base map 
 e_l <- as.list(e) # save station extent as list to use it as input for the openmap 
@@ -354,7 +384,7 @@ plot.multi_pred <- function(map, first, mid, last, tag, alpha.value) {
 plot.pres(map, 4)
 plot.single_pred(map, 1, "s")
 plot.multi_pred(map, 1,2,3, "s", 100)
-plot.combo_pred(map, 1)
+plot.combo_pred(map, 2)
 
 #--------------------------------------- 4.3 Plots --------------------------------------#
 

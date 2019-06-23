@@ -49,7 +49,7 @@ loadandinstall <- function(mypkg) {if (!is.element(mypkg, installed.packages()[,
 packagelist <- as.list(c('bikedata', 'dplyr', 'rgdal', 'raster', 'sdm', 
                          'data.table', 'dodgr', 'tidyverse', 'osmdata', 
                          'osmplotr', 'OpenStreetMap', 'ellipse', 'lubridate', 
-                         'plotrix', 'scales', 'plotKML'))
+                         'plotrix', 'scales', 'plotKML', 'colorspace', 'rasterVis'))
 lapply(packagelist, function(x) loadandinstall(x))
 
 
@@ -300,7 +300,7 @@ plot.pres <- function(map, i) {
 }
 #test it :D
 
-# predicted frequency
+# function to plot predicted frequency
 plot.single_pred <- function(map, i, tag) {
   if (tag == "s") {
     plot(map)
@@ -316,8 +316,21 @@ plot.single_pred <- function(map, i, tag) {
   }
 }
 
+# function to plot predicted frequency of start (blue) and end (red) as combo for a scenario i
+plot.combo_pred <- function(map, i) {
+  plot(map)
+  image(plotable.p_s[[i]]$id_2.sp_1.m_svm, 
+        col = sequential_hcl(1000, h=255, power=0.3, rev = T, alpha = 0.5), 
+        add = T, legend = F)
+  image(plotable.p_e[[i]]$id_2.sp_1.m_svm, 
+        col = sequential_hcl(1000, h=0, power=0.3, rev = T, alpha = 0.5), 
+        add = T, legend = F)
+  image(plotable.p_s[[i]]$id_2.sp_1.m_svm, 
+        col = sequential_hcl(1000, h=255, power=0.3, rev = T, alpha = 0.3), 
+        add = T, legend = F)
+}
 
-# predict frequency as rgb
+# function to plot predicted frequency as rgb
 plot.multi_pred <- function(map, first, mid, last, tag, alpha.value) {
   if (tag == "s") {
     plot(map)
@@ -341,5 +354,7 @@ plot.multi_pred <- function(map, first, mid, last, tag, alpha.value) {
 plot.pres(map, 4)
 plot.single_pred(map, 1, "s")
 plot.multi_pred(map, 1,2,3, "s", 100)
+plot.combo_pred(map, 1)
 
-plot.pres(map, 2)
+#--------------------------------------- 4.3 Plots --------------------------------------#
+
